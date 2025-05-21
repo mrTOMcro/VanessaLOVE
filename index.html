@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Trainingsplan</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 10px; background: #f9f9f9; color: #222; }
+  h1, h2 { text-align:center; }
+  .button-group {
+    display: flex; justify-content: center; margin-bottom: 10px;
+    gap: 5px;
+  }
+  .button-group button {
+    padding: 10px 15px; border: 1px solid #666; border-radius: 4px;
+    background: white; cursor: pointer; font-weight: bold;
+  }
+  .button-group button.selected {
+    background: #007bff; color: white; border-color: #0056b3;
+  }
+  table {
+    width: 100%; border-collapse: collapse; margin-bottom: 15px;
+  }
+  th, td {
+    border: 1px solid #ddd; padding: 8px; text-align: center;
+  }
+  th {
+    background: #007bff; color: white;
+  }
+  .calendar {
+    max-width: 700px; margin: 0 auto 20px auto;
+  }
+  .training-list {
+    max-width: 700px; margin: 0 auto 30px auto;
+  }
+  .training-list button {
+    display: block; width: 100%; margin: 5px 0; padding: 10px;
+    font-size: 16px; cursor: pointer;
+  }
+  /* Trainingsansicht */
+  #trainingView {
+    max-width: 700px; margin: 20px auto; padding: 10px;
+    border: 1px solid #ccc; background: white; display: none;
+  }
+  #trainingView h2 {
+    margin-top: 0; text-align:center;
+  }
+  #trainingImage {
+    display: block; margin: 0 auto 10px auto; max-width: 100%; height: auto;
+  }
+  #timer {
+    font-size: 2em; text-align: center; margin: 10px 0;
+  }
+  #timer.red {
+    color: red;
+  }
+  .controls {
+    text-align: center; margin-top: 10px;
+  }
+  .controls button {
+    margin: 0 8px; padding: 8px 15px; font-size: 16px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<h1>Trainingsplan</h1>
+
+<div class="button-group" id="dayButtons">
+  <button data-day="1">Mo</button>
+  <button data-day="2">Di</button>
+  <button data-day="3">Mi</button>
+  <button data-day="4">Do</button>
+  <button data-day="5">Fr</button>
+  <button data-day="6">Sa</button>
+  <button data-day="7">So</button>
+</div>
+<p style="text-align:center; font-size: 0.9em; color:#555;">Wähle genau 3 Tage für dein Training pro Woche aus</p>
+
+<div class="calendar" id="calendar"></div>
+
+<div class="training-list" id="trainingList">
+  <button data-training="unterkoerper">Unterkörper Workout</button>
+  <button data-training="oberkoerper">Oberkörper Workout</button>
+  <button data-training="ganzkoerper">Ganzkörper Workout</button>
+</div>
+
+<!-- Trainingsansicht -->
+<div id="trainingView">
+  <h2 id="trainingTitle"></h2>
+  <img id="trainingImage" src="" alt="Übung" />
+  <div id="hinweisText" style="white-space: pre-wrap; margin: 15px 10px;"></div>
+  <div id="timer">00:00</div>
+  <div class="controls">
+    <button id="startBtn">Start</button>
+    <button id="pauseBtn" style="display:none;">Pause</button>
+    <button id="nextBtn" style="display:none;">Weiter</button>
+    <button id="stopBtn" style="display:none;">Beenden</button>
+  </div>
+</div>
+
+<audio id="startAudio" src="Ton/Startsignal.mp3"></audio>
+<audio id="pauseAudio" src="Ton/Pausesignal.mp3"></audio>
+
+<script>
+// Trainings-Daten
+const trainings = {
+  unterkoerper: [
+    { titel:"Kurzhantel Kniebeugen", saetze:3, dauer:60, gewicht:"8 kg+", hinweis:"Bitte in jede Hand eine 8 kg Hantel. Falls Du 10 oder 12 kg schaffst, auch gerne mehr. Langsam und kontrolliert ausführen. Am untersten Punkt kurz innehalten (Kopf bis 3 zählen).", gif:"Unterkörper/Aufgabe 1.gif" },
+    { titel:"Einbeiniges Kurzhantel Beckenheben", saetze:6, dauer:40, gewicht:"12 kg", hinweis:"Schnapp dir Sofakante oder Hocker als Bank. Beine 90 Grad, Becken langsam absenken und explosiv nach oben kommen. Oben kurz innehalten und wieder absenken.", gif:"Unterkörper/Aufgabe 2.gif" },
+    { titel:"Bulgarian Split Squat", saetze:6, dauer:40, gewicht:"10 kg", hinweis:"Abstand Bank und Standbein finden: auf Bankkante sitzen und Beine ausstrecken. Fuß auf Bank, Oberkörper leicht nach vorne kippen, gerade runter und hoch drücken, Kraft aus Verse über Po mobilisieren.", gif:"Unterkörper/Aufgabe 3.gif" },
+    { titel:"Donkey Kickback mit Band", saetze:6, dauer:60, gewicht:"-", hinweis:"", gif:"Unterkörper/Aufgabe 4.gif" },
+    { titel:"Wadenheben mit Kurzhantel", saetze:3, dauer:30, gewicht:"-", hinweis:"", gif:"Unterkörper/Aufgabe 5.gif" },
+    { titel:"Einbeiniges Kreuzheben (Eigengewicht)", saetze:6, dauer:40, gewicht:"-", hinweis:"", gif:"Unterkörper/Aufgabe 6.gif" },
+    { titel:"Unterarmstütz (Plank)", saetze:3, dauer:60, gewicht:"-", hinweis:"", gif:"Unterkörper/Aufgabe 7.gif" },
+    { titel:"Russian Twist mit Gewicht", saetze:3, dauer:60, gewicht:"5 kg", hinweis:"", gif:"Unterkörper/Aufgabe 8.gif" }
+  ],
+  oberkoerper: [
+    { titel:"Vorgebeugtes Kurzhantel-Rudern", saetze:3, dauer:60, gewicht:"10 kg", hinweis:"", gif:"Oberkörper/Aufgabe 1.gif" },
+    { titel:"Kniend Liegestütz", saetze:3, dauer:null, gewicht:"10-12 Wdh", hinweis:"", gif:"Oberkörper/Aufgabe 2.gif" },
+    { titel:"4 Arten Seitheben", saetze:3, dauer:40, gewicht:"4 kg", hinweis:"", gif:"Oberkörper/Aufgabe 3.gif" },
+    { titel:"Sitzendes Kurzhantel Schulterdrücken", saetze:3, dauer:40, gewicht:"-", hinweis:"Je nach Wunsch mit Rückenlehne oder ohne. Rücken gerade, Hanteln über Kopf drücken, Ellenbogengelenke auf Schulterhöhe.", gif:"Oberkörper/Aufgabe 4.gif" },
+    { titel:"Stehende Kurzhantel Bizepscurls", saetze:3, dauer:60, gewicht:"6 kg", hinweis:"", gif:"Oberkörper/Aufgabe 5.gif" },
+    { titel:"Stehendes Kurzhantel Trizepsstrecken", saetze:3, dauer:60, gewicht:"10 kg", hinweis:"Rücken gerade, Hanteln neben Kopf halten, Arme nach oben drücken.", gif:"Oberkörper/Aufgabe 6.gif" },
+    { titel:"Seitstütz", saetze:6, dauer:60, gewicht:"-", hinweis:"", gif:"Oberkörper/Aufgabe 7.gif" },
+    { titel:"Liegendes Beinheben", saetze:3, dauer:60, gewicht:"-", hinweis:"", gif:"Oberkörper/Aufgabe 8.gif" }
+  ],
+  ganzkoerper: [
+    { titel:"Seitlicher Band Walk", saetze:3, dauer:60, gewicht:"-", hinweis:"", gif:"Ganzkörper/Aufgabe 1.gif" },
+    { titel:"Wandsitzen, Kurzhantel, mit Band", saetze:3, dauer:60, gewicht:"-", hinweis:"", gif:"Ganzkörper/Aufgabe 2.gif" },
+    { titel:"Pulsierender Ausfallschritt", saetze:6, dauer:40, gewicht:"-", hinweis:"", gif:"Ganzkörper/Aufgabe 3.gif" },
+    { titel:"Rückenstrecken im Liegen", saetze:3, dauer:60, gewicht:"-", hinweis:"", gif:"Ganzkörper/Aufgabe 4.gif" },
+    { titel:"Kurzhantel Floor Press", saetze:3, dauer:60, gewicht:"-", hinweis:"", gif:"Ganzkörper/Aufgabe 5.gif" },
+    { titel:"Gewichtsscheiben Frontheben", saetze:3, dauer:40, gewicht:"-", hinweis:"Beim Frontheben mit einer Scheibe greifst du die Hantelscheibe mit beiden Händen. Hebe die Gewichtsscheibe, bis sich deine Arme parallel zum Boden befinden. Anschließend senkst du nach kurzem Halten die Arme wieder ab.", gif:"Ganzkörper/Aufgabe 6.gif" },
+    { titel:"Umgekehrte Planke", saetze:3, dauer:60, gewicht:"-", hinweis:"", gif:"Ganzkörper/Aufgabe 7.gif" },
+    { titel:"Abwechselndes Beinheben im Liegen", saetze:3, dauer:60, gewicht:"-", hinweis:"", gif:"Ganzkörper/Aufgabe 8.gif" }
+  ]
+};
+
+// Ausgewählte Trainingstage speichern
+let selectedDays = new Set();
+
+// Referenzen DOM
+const dayButtons = document.querySelectorAll('#dayButtons button');
+const calendarDiv = document.getElementById('calendar');
+const trainingList = document.getElementById('trainingList');
+const trainingView = document.getElementById('trainingView');
+const trainingTitle = document.getElementById('trainingTitle');
+const trainingImage = document.getElementById('trainingImage');
+const hinweisText = document.getElementById('hinweisText');
+const timerEl = document.getElementById('timer');
+const startBtn = document.getElementById('startBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const nextBtn = document.getElementById('nextBtn');
+const stopBtn = document.getElementById('stopBtn');
+const startAudio = document.getElementById('startAudio');
+const pauseAudio = document.getElementById('pauseAudio');
+
+let currentTrainingKey = null;
+let currentExerciseIndex = 0;
+let timer = null;
+let timerMode = 'work'; // work or pause
+let timerSeconds = 0;
+let paused = false;
+let waitingForNext = false;
+let currentSetsLeft = 0;
+
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+}
+
+function updateTimerDisplay() {
+  timerEl.textContent = formatTime(timerSeconds);
+  if(timerSeconds <= 5 && timerMode !== 'pause') {
+    timerEl.classList.add('red');
+  } else if(timerMode === 'pause' && timerSeconds <= 5) {
+    timerEl.classList.add('red');
+  } else {
+    timerEl.classList.remove('red');
+  }
+}
+
+function playStartSound() {
+  startAudio.currentTime = 0;
+  startAudio.play();
+}
+function playPauseSound() {
+  pauseAudio.currentTime = 0;
+  pauseAudio.play();
+}
+
+// Timer Ablauf
+function tick() {
+  if(paused) return;
+  if(timerSeconds > 0) {
+    timerSeconds--;
+    updateTimerDisplay();
+  } else {
+    clearInterval(timer);
+    if(timerMode === 'work') {
+      if(currentSetsLeft > 1) {
+        // Pause nach Satz
+        timerMode = 'pause';
+        timerSeconds = 60;
+        updateTimerDisplay();
+        playPauseSound();
+        currentSetsLeft--;
+        pauseBtn.style.display = 'inline-block';
+        nextBtn.style.display = 'inline-block';
+        startBtn.style.display = 'none';
+        return;
+      } else {
+        // Nächste Übung
+        nextExercise();
+      }
+    } else if(timerMode === 'pause') {
+      // Pause vorbei, zurück zur Arbeit
+      timerMode = 'work';
+      timerSeconds = currentExercise().dauer;
+      updateTimerDisplay();
+      playStartSound();
+    }
+  }
+}
+
+// Hole aktuelle Übung
+function currentExercise() {
+  return trainings[currentTrainingKey][currentExerciseIndex];
+}
+
+// Starte Training / Übung
+function startTraining() {
+  paused = false;
+  waitingForNext = false;
+  currentSetsLeft = currentExercise().saetze;
+  timerMode = 'work';
+  timerSeconds = currentExercise().dauer || 0;
+  updateTimerDisplay();
+  playStartSound();
+  startBtn.style.display = 'none';
+  pauseBtn.style.display = 'inline-block';
+  nextBtn.style.display = 'inline-block';
+  stopBtn.style.display = 'inline-block';
+  timer = setInterval(tick, 1000);
+}
+
+// Pause / Weiter
+pauseBtn.onclick = () => {
+  paused = !paused;
+  pauseBtn.textContent = paused ? "Weiter" : "Pause";
+};
+nextBtn.onclick = () => {
+  // Bei Übungen mit Dauer Timer stoppen und nächste Übung starten
+  if(timer) clearInterval(timer);
+  nextExercise();
+};
+stopBtn.onclick = () => {
+  if(timer) clearInterval(timer);
+  showTrainingList();
+};
+
+startBtn.onclick = () => {
+  if(currentExercise().dauer === null) {
+    // Übung mit Wiederholungen, kein Timer, sofort Pausieren und warten auf Weiter
+    paused = true;
+    waitingForNext = true;
+    playStartSound();
+    startBtn.style.display = 'none';
+    pauseBtn.style.display = 'none';
+    nextBtn.style.display = 'inline-block';
+    stopBtn.style.display = 'inline-block';
+    timerEl.textContent = "Wdh.: " + currentExercise().gewicht;
+    timerEl.classList.remove('red');
+  } else {
+    startTraining();
+  }
+};
+
+function nextExercise() {
+  currentExerciseIndex++;
+  if(currentExerciseIndex >= trainings[currentTrainingKey].length) {
+    alert("Training abgeschlossen!");
+    showTrainingList();
+    return;
+  }
+  // Setze Übung zurück
+  paused = false;
+  waitingForNext = false;
+  currentSetsLeft = currentExercise().saetze;
+  timerMode = 'work';
+  timerSeconds = currentExercise().dauer || 0;
+  updateTimerDisplay();
+  playStartSound();
+  // Update UI
+  updateTrainingView();
+  if(currentExercise().dauer === null) {
+    // Bei Wdh. keine Zeit, direkt Weiter Button zeigen
+    startBtn.style.display = 'none';
+    pauseBtn.style.display = 'none';
+    nextBtn.style.display = 'inline-block';
+  } else {
+    startBtn.style.display = 'inline-block';
+    pauseBtn.style.display = 'none';
+    nextBtn.style.display = 'none';
+  }
+}
+
+function updateTrainingView() {
+  const ex = currentExercise();
+  trainingTitle.textContent = currentTrainingKey.charAt(0).toUpperCase() + currentTrainingKey.slice(1) + " - " + ex.titel;
+  trainingImage.src = "Bilder/" + ex.gif;
+  trainingImage.alt = ex.titel;
+  hinweisText.textContent = `Sätze: ${ex.saetze} x ${ex.dauer ? ex.dauer + " Sek." : ex.gewicht} Gewicht: ${ex.gewicht}\n\n${ex.hinweis}`;
+}
+
+function showTrainingView(trainingKey) {
+  currentTrainingKey = trainingKey;
+  currentExerciseIndex = 0;
+  trainingView.style.display = "block";
+  trainingList.style.display = "none";
+  updateTrainingView();
+  startBtn.style.display = 'inline-block';
+  pauseBtn.style.display = 'none';
+  nextBtn.style.display = 'none';
+  stopBtn.style.display = 'inline-block';
+  timerEl.textContent = "Bereit?";
+  timerEl.classList.remove('red');
+}
+
+// Zeige Training Liste (Startseite)
+function showTrainingList() {
+  trainingView.style.display = "none";
+  trainingList.style.display = "block";
+  timerEl.textContent = "";
+  currentTrainingKey = null;
+}
+
+// Tag Buttons Logik
+dayButtons.forEach(btn => {
+  btn.onclick = () => {
+    if(selectedDays.has(btn.dataset.day)) {
+      selectedDays.delete(btn.dataset.day);
+      btn.classList.remove("selected");
+    } else {
+      if(selectedDays.size < 3) {
+        selectedDays.add(btn.dataset.day);
+        btn.classList.add("selected");
+      } else {
+        alert("Bitte wähle genau 3 Trainingstage aus!");
+      }
+    }
+    updateCalendar();
+  };
+});
+
+// Kalender bauen (2 Wochen, Mo bis So, Tage mit Training beschriften)
+function updateCalendar() {
+  if(selectedDays.size !== 3) {
+    calendarDiv.innerHTML = "<p style='text-align:center; color: #555;'>Bitte wähle genau 3 Tage für dein Training aus.</p>";
+    return;
+  }
+  // Wochentage sortiert (1=Mo,...)
+  let tage = Array.from(selectedDays).map(x => parseInt(x)).sort((a,b)=>a-b);
+
+  let kalenderHTML = "<table><thead><tr>";
+  ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].forEach(tag => {
+    kalenderHTML += `<th>${tag}</th>`;
+  });
+  kalenderHTML += "</tr></thead><tbody>";
+
+  // 2 Wochen = 2 Reihen
+  for(let w=0; w<2; w++) {
+    kalenderHTML += "<tr>";
+    for(let tag=1; tag<=7; tag++) {
+      if(tage.includes(tag)) {
+        // Bestimme Training (in Reihenfolge Unter, Ober, Ganz)
+        let trainingName = ["Unterkörper", "Oberkörper", "Ganzkörper"][ (w*3 + tage.indexOf(tag)) % 3 ];
+        kalenderHTML += `<td style="background:#d9f0ff; font-weight:bold;">${trainingName}</td>`;
+      } else {
+        kalenderHTML += "<td></td>";
+      }
+    }
+    kalenderHTML += "</tr>";
+  }
+  kalenderHTML += "</tbody></table>";
+
+  calendarDiv.innerHTML = kalenderHTML;
+}
+
+// Trainings Buttons
+trainingList.querySelectorAll('button').forEach(btn => {
+  btn.onclick = () => {
+    showTrainingView(btn.dataset.training);
+  };
+});
+
+// Start mit Training Liste anzeigen
+showTrainingList();
+updateCalendar();
+
+</script>
+
+</body>
+</html>
